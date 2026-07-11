@@ -1,0 +1,234 @@
+import { showToast } from '../modules/toast.js';
+import type { ApiProvider } from '../types/app.js';
+import { loadApiKey, saveApiKey } from './credentialService.js';
+import { fetchModelNames } from './modelService.js';
+import {
+    DEFAULT_LM_STUDIO_MODEL_OPTIONS,
+    runtimeViewStateStore,
+} from './runtimeViewStateStore.js';
+import {
+    DEFAULT_GOOGLE_MODEL,
+    DEFAULT_LM_STUDIO_MODEL,
+    CEREBRAS_MODELS,
+    GOOGLE_MODELS,
+    OPENCODE_GO_MODELS,
+    ZEN_MODELS,
+    getProviderBase,
+    getProviderModel,
+    readSavedAppSettings,
+    saveApiSettings,
+} from './settingsService.js';
+
+interface AppSettingsControllerOptions {
+    getProvider: () => ApiProvider;
+}
+
+export interface AppSettingsController {
+    persistGoogleApiKey: () => Promise<void>;
+    refreshModels: () => Promise<void>;
+    saveSettings: () => Promise<void>;
+    setProviderUI: (skipModelFetch?: boolean, options?: { persistSettings?: boolean }) => Promise<void>;
+    updateApiBase: (apiBase: string) => void;
+    updateApiKey: (apiKey: string) => void;
+    updateModelName: (modelName: string) => void;
+    updateProvider: (provider: ApiProvider) => void;
+}
+
+export function createAppSettingsController({ getProvider }: AppSettingsControllerOptions): AppSettingsController {
+    function getApiSettings() {
+        return runtimeViewStateStore.getSnapshot().apiSettings;
+    }
+
+    function updateProvider(provider: ApiProvider) {
+        runtimeViewStateStore.setApiSettings({ provider });
+    }
+
+    function updateApiBase(apiBase: string) {
+        runtimeViewStateStore.setApiSettings({ apiBase });
+    }
+
+    function updateApiKey(apiKey: string) {
+        runtimeViewStateStore.setApiSettings({ apiKey });
+    }
+
+    function updateModelName(modelName: string) {
+        runtimeViewStateStore.setApiSettings({ modelName });
+    }
+
+    async function persistGoogleApiKey() {
+        try {
+            const provider = getProvider();
+            const apiKeyProviders: ApiProvider[] = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+            if (!apiKeyProviders.includes(provider)) return;
+            const savedKey = await saveApiKey(provider, getApiSettings().apiKey);
+            runtimeViewStateStore.setApiSettings({ apiKey: savedKey });
+
+            if (savedKey) {
+                showToast(`${provider} API Key saved to Windows Credential Manager.`, 'success');
+            } else {
+                showToast(`${provider} API Key removed from Windows Credential Manager.`, 'info');
+            }
+        } catch (e) {
+            console.error('[Frontend] API Key save failed:', e);
+            showToast('Failed to update Windows Credential Manager: ' + e, 'error');
+        }
+    }
+
+    async function refreshModels() {
+        try {
+            console.log('[Frontend] Refreshing models...');
+            runtimeViewStateStore.setApiSettings({
+                apiStatus: '⏳ Syncing...',
+                isRefreshingModels: true,
+            });
+
+            const { apiBase, apiKey, modelName: currentModel } = getApiSettings();
+            const models = await fetchModelNames(apiBase, apiKey);
+
+            if (models && models.length > 0) {
+                runtimeViewStateStore.setApiSettings({
+                    modelOptions: models,
+                    modelName: models.includes(currentModel) ? currentModel : models[0],
+                });
+                console.log('[Frontend] Models updated.');
+            }
+        } catch (e) {
+            console.warn('[Frontend] Model fetch failed', e);
+        } finally {
+            runtimeViewStateStore.setApiSettings({ isRefreshingModels: false });
+            setTimeout(() => {
+                runtimeViewStateStore.setApiSettings({ apiStatus: '' });
+            }, 3000);
+        }
+    }
+
+    async function saveSettings() {
+        console.log('[Frontend] Saving settings...');
+        const { apiBase, modelName, provider } = getApiSettings();
+        saveApiSettings({
+            provider,
+            apiBase,
+            modelName,
+        });
+    }
+
+    async function setProviderUI(skipModelFetch = false, { persistSettings = true } = {}) {
+        try {
+            const provider = getProvider();
+            console.log('[Frontend] Setting Provider UI for:', provider);
+            const savedSettings = readSavedAppSettings();
+
+            let loadedKey = '';
+            const apiKeyProviders: ApiProvider[] = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+            if (apiKeyProviders.includes(provider)) {
+                loadedKey = await loadApiKey(provider);
+            }
+
+            if (provider === 'Google') {
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: loadedKey,
+                    showApiKey: true,
+                    modelOptions: GOOGLE_MODELS,
+                    modelName: getProviderModel(provider, savedSettings) || DEFAULT_GOOGLE_MODEL,
+                });
+            } else if (provider === 'Ollama Cloud') {
+                const savedOllamaCloudModel = getProviderModel(provider, savedSettings);
+                const modelName = savedOllamaCloudModel || '';
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: loadedKey,
+                    showApiKey: true,
+                    modelOptions: modelName ? [modelName] : [],
+                    modelName,
+                });
+            } else if (provider === 'OpenCode Go') {
+                const savedOpenCodeGoModel = getProviderModel(provider, savedSettings);
+                const modelName = savedOpenCodeGoModel || OPENCODE_GO_MODELS[0];
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: loadedKey,
+                    showApiKey: true,
+                    modelOptions: OPENCODE_GO_MODELS.includes(modelName)
+                        ? OPENCODE_GO_MODELS
+                        : [...OPENCODE_GO_MODELS, modelName],
+                    modelName,
+                });
+            } else if (provider === 'Zen') {
+                const savedZenModel = getProviderModel(provider, savedSettings);
+                const modelName = savedZenModel || ZEN_MODELS[0];
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: loadedKey,
+                    showApiKey: true,
+                    modelOptions: ZEN_MODELS.includes(modelName)
+                        ? ZEN_MODELS
+                        : [...ZEN_MODELS, modelName],
+                    modelName,
+                });
+            } else if (provider === 'Cerebras') {
+                const savedCerebrasModel = getProviderModel(provider, savedSettings);
+                const modelName = savedCerebrasModel || CEREBRAS_MODELS[0];
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: loadedKey,
+                    showApiKey: true,
+                    modelOptions: CEREBRAS_MODELS.includes(modelName)
+                        ? CEREBRAS_MODELS
+                        : [...CEREBRAS_MODELS, modelName],
+                    modelName,
+                });
+            } else if (provider === 'Ollama') {
+                const savedOllamaModel = getProviderModel(provider, savedSettings);
+                const modelName = savedOllamaModel || '';
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: '',
+                    showApiKey: false,
+                    modelOptions: modelName ? [modelName] : [],
+                    modelName,
+                });
+            } else {
+                const savedLMModel = getProviderModel(provider, savedSettings);
+                const modelName = savedLMModel || DEFAULT_LM_STUDIO_MODEL;
+                runtimeViewStateStore.setApiSettings({
+                    provider,
+                    apiBase: getProviderBase(provider, savedSettings),
+                    apiKey: '',
+                    showApiKey: false,
+                    modelOptions: DEFAULT_LM_STUDIO_MODEL_OPTIONS.includes(modelName)
+                        ? DEFAULT_LM_STUDIO_MODEL_OPTIONS
+                        : [...DEFAULT_LM_STUDIO_MODEL_OPTIONS, modelName],
+                    modelName,
+                });
+            }
+
+            const fetchableProviders: ApiProvider[] = ['LM Studio', 'Ollama', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+            if (!skipModelFetch && fetchableProviders.includes(provider)) {
+                await refreshModels();
+            }
+            if (persistSettings) {
+                await saveSettings();
+            }
+        } catch (e) {
+            console.error('[Frontend] Error in setProviderUI:', e);
+        }
+    }
+
+    return {
+        persistGoogleApiKey,
+        refreshModels,
+        saveSettings,
+        setProviderUI,
+        updateApiBase,
+        updateApiKey,
+        updateModelName,
+        updateProvider,
+    };
+}

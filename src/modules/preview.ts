@@ -1,0 +1,231 @@
+const ALLOWED_TAGS = new Set([
+    'a', 'annotation', 'blockquote', 'br', 'code', 'del', 'div', 'em', 'h1', 'h2', 'h3',
+    'h4', 'h5', 'h6', 'hr', 'li', 'math', 'mfrac', 'mi', 'mn', 'mo', 'mover', 'mpadded',
+    'mroot', 'mrow', 'mspace', 'msqrt', 'mstyle', 'msub', 'msubsup', 'msup', 'mtable',
+    'mtd', 'mtext', 'mtr', 'munder', 'munderover', 'ol', 'p', 'pre', 'semantics',
+    'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul',
+]);
+
+const GLOBAL_ALLOWED_ATTRIBUTES = new Set([
+    'aria-hidden', 'aria-label', 'class', 'role',
+]);
+
+const TAG_ALLOWED_ATTRIBUTES = {
+    a: new Set(['href', 'rel', 'target', 'title']),
+    annotation: new Set(['encoding']),
+    img: new Set(['alt', 'src', 'title']),
+    li: new Set(['value']),
+    math: new Set(['display', 'xmlns']),
+    ol: new Set(['start', 'type', 'reversed']),
+    span: new Set(['style']),
+};
+
+function isSafeClassList(value) {
+    return value
+        .split(/\s+/)
+        .filter(Boolean)
+        .every(item => /^[A-Za-z0-9_-]+$/.test(item));
+}
+
+function isSafeUrl(value, tagName, attrName) {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return false;
+
+    if (trimmed.startsWith('#')) return true;
+
+    let url;
+    try {
+        url = new URL(trimmed, window.location.href);
+    } catch (_) {
+        return false;
+    }
+
+    if (attrName === 'src' && tagName === 'img') {
+        return ['http:', 'https:', 'data:'].includes(url.protocol)
+            && (!trimmed.toLowerCase().startsWith('data:') || trimmed.toLowerCase().startsWith('data:image/'));
+    }
+
+    return ['http:', 'https:', 'mailto:'].includes(url.protocol);
+}
+
+function sanitizeAttributes(element: Element) {
+    const tagName = element.tagName.toLowerCase();
+    const allowedForTag = TAG_ALLOWED_ATTRIBUTES[tagName] || new Set();
+
+    for (const attr of Array.from(element.attributes)) {
+        const name = attr.name.toLowerCase();
+        const value = attr.value;
+
+        if (name.startsWith('on')) {
+            element.removeAttribute(attr.name);
+            continue;
+        }
+
+        if (name === 'style') {
+            element.removeAttribute(attr.name);
+            continue;
+        }
+
+        if (name === 'class' && !isSafeClassList(value)) {
+            element.removeAttribute(attr.name);
+            continue;
+        }
+
+        if (name === 'href' || name === 'src') {
+            if (!isSafeUrl(value, tagName, name)) {
+                element.removeAttribute(attr.name);
+            }
+            continue;
+        }
+
+        if (!GLOBAL_ALLOWED_ATTRIBUTES.has(name) && !allowedForTag.has(name)) {
+            element.removeAttribute(attr.name);
+        }
+    }
+
+    if (tagName === 'a' && element.hasAttribute('href')) {
+        element.setAttribute('target', '_blank');
+        element.setAttribute('rel', 'noopener noreferrer');
+    }
+}
+
+function sanitizeNode(node: Node) {
+    if (node.nodeType === Node.COMMENT_NODE) {
+        node.parentNode?.removeChild(node);
+        return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const element = node as Element;
+    const tagName = element.tagName.toLowerCase();
+
+    if (!ALLOWED_TAGS.has(tagName)) {
+        const textNode = document.createTextNode(element.textContent || '');
+        element.replaceWith(textNode);
+        return;
+    }
+
+    sanitizeAttributes(element);
+
+    for (const child of Array.from(element.childNodes)) {
+        sanitizeNode(child);
+    }
+}
+
+function replaceTextNodeWithFragments(textNode, replacements) {
+    const text = textNode.nodeValue || '';
+    let cursor = 0;
+    const fragment = document.createDocumentFragment();
+    const pattern = /\uE000BOLD(\d+)\uE001/g;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+        if (match.index > cursor) {
+            fragment.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+        }
+
+        const replacement = replacements[Number(match[1])];
+        if (replacement !== undefined) {
+            const strong = document.createElement('strong');
+            strong.textContent = replacement;
+            fragment.appendChild(strong);
+        } else {
+            fragment.appendChild(document.createTextNode(match[0]));
+        }
+
+        cursor = match.index + match[0].length;
+    }
+
+    if (cursor < text.length) {
+        fragment.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+
+    textNode.replaceWith(fragment);
+}
+
+function restoreForcedBold(container, replacements) {
+    if (!replacements.length) return;
+
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) {
+        if ((walker.currentNode.nodeValue || '').includes('\uE000BOLD')) {
+            nodes.push(walker.currentNode);
+        }
+    }
+
+    for (const node of nodes) {
+        replaceTextNodeWithFragments(node, replacements);
+    }
+}
+
+function sanitizeRenderedHtml(unsafeHtml, { forcedBold = [] } = {}) {
+    const template = document.createElement('template');
+    template.innerHTML = unsafeHtml;
+
+    for (const child of Array.from(template.content.childNodes)) {
+        sanitizeNode(child);
+    }
+
+    const container = document.createElement('div');
+    container.appendChild(template.content);
+    restoreForcedBold(container, forcedBold);
+    return container.innerHTML;
+}
+
+function applyBoldMath(text) {
+    return text
+        .replace(/(\*\*|__)\$\$([\s\S]+?)\$\$\1/g, (_, _marker, body) => {
+            return `$$\\boldsymbol{${body}}$$`;
+        })
+        .replace(/(\*\*|__)\$(?!\$)([\s\S]+?)\$\1/g, (_, _marker, body) => {
+            return `$\\boldsymbol{${body}}$`;
+        });
+}
+
+function applyQuotedBoldText(text) {
+    const forcedBold = [];
+    const transformed = text.replace(
+        /(\*\*|__)([“"‘'「『][^\n]+?[”"’'」』])\1(?=[\p{L}\p{N}_])/gu,
+        (_, _marker, body) => {
+            const index = forcedBold.push(body) - 1;
+            return `\uE000BOLD${index}\uE001`;
+        },
+    );
+
+    return { text: transformed, forcedBold };
+}
+
+function applySafeLineBreakTags(text) {
+    return text
+        .replace(/&lt;br\s*\/?&gt;/gi, '<br>')
+        .replace(/&lt;strong&gt;/gi, '<strong>')
+        .replace(/&lt;\/strong&gt;/gi, '</strong>')
+        .replace(/&lt;b&gt;/gi, '<strong>')
+        .replace(/&lt;\/b&gt;/gi, '</strong>');
+}
+
+export function renderMarkdownToHtml(sourceText) {
+    if (!window.marked) return '';
+
+    let text = (sourceText || '')
+        .replace(/\$\\rightarrow\$/g, '→')
+        .replace(/\\rightarrow/g, '→');
+
+    text = applyBoldMath(text);
+
+    // Pre-convert markdown bold markers to HTML strong tags to prevent CommonMark word-boundary constraints on non-ASCII characters (e.g. **카드**가)
+    text = text
+        .replace(/\*\*([^\n\*]+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^\n_]+?)__/g, '<strong>$1</strong>');
+
+    const boldText = applyQuotedBoldText(text);
+    text = boldText.text;
+
+    const processedText = text.replace(/~/g, '\\~');
+    const renderedHtml = applySafeLineBreakTags(String(window.marked.parse(processedText)));
+    return sanitizeRenderedHtml(renderedHtml, {
+        forcedBold: boldText.forcedBold,
+    });
+}
