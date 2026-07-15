@@ -102,7 +102,8 @@ function ApiSettingsCard({
 function TarotPromptCard({
     actions,
     promptEditor,
-}: ActionProps & { promptEditor: PromptEditorViewState }) {
+    isPlotRunning,
+}: ActionProps & { promptEditor: PromptEditorViewState; isPlotRunning: boolean }) {
     const tarotTypes = ['한장', '세장', '관계', '선택', '말굽', '켈틱 크로스'];
     return (
         <div className="card settings-group">
@@ -126,7 +127,10 @@ function TarotPromptCard({
             </div>
 
             <div className="input-group">
-                <label htmlFor="system-prompt">상담 내용</label>
+                <div className="label-header">
+                    <label htmlFor="system-prompt">상담 내용</label>
+                    <span className="status-msg">Ctrl+Enter로 카드 뽑기</span>
+                </div>
                 <textarea
                     id="system-prompt"
                     className="inputbox textarea-small"
@@ -135,6 +139,12 @@ function TarotPromptCard({
                     placeholder="상담 내용을 입력하세요"
                     value={promptEditor.systemPrompt}
                     onChange={event => actions.onSystemPromptChange(event.currentTarget.value)}
+                    onKeyDown={event => {
+                        if (event.key !== 'Enter' || !event.ctrlKey || event.repeat || event.nativeEvent.isComposing) return;
+                        event.preventDefault();
+                        if (!isPlotRunning) actions.onDrawCards();
+                    }}
+                    aria-keyshortcuts="Control+Enter"
                 />
             </div>
         </div>
@@ -319,7 +329,11 @@ export function Sidebar({
             </div>
 
             <ApiSettingsCard actions={actions} apiSettings={viewState.apiSettings} />
-            <TarotPromptCard actions={actions} promptEditor={viewState.promptEditor} />
+            <TarotPromptCard
+                actions={actions}
+                promptEditor={viewState.promptEditor}
+                isPlotRunning={viewState.activity.isPlotRunning}
+            />
             <ReadingParamsCard actions={actions} activity={viewState.activity} />
             <LayoutSettingsCard 
                 layout={layout}

@@ -3,6 +3,29 @@ import type { AppProps } from './componentTypes.js';
 import type { TarotCard } from '../types/app.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
 
+type OutputAlignment = 'left' | 'center' | 'right';
+
+const OUTPUT_ALIGNMENT_KEY = 'wintarot_output_alignment';
+const outputAlignmentOptions: Array<{
+    value: OutputAlignment;
+    label: string;
+}> = [
+    { value: 'left', label: '출력창 좌측 배치' },
+    { value: 'center', label: '출력창 중앙 배치' },
+    { value: 'right', label: '출력창 우측 배치' },
+];
+
+function OutputAlignmentIcon({ alignment }: { alignment: OutputAlignment }) {
+    const shortLineX = alignment === 'left' ? 3 : alignment === 'center' ? 6 : 9;
+
+    return (
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none">
+            <path d="M3 5h18M3 12h18M3 19h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d={`M${shortLineX} 8h12M${shortLineX} 15h12`} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+    );
+}
+
 const modalOverlayStyle: CSSProperties = {
     position: 'fixed',
     top: 0,
@@ -220,6 +243,10 @@ export function TarotReadingSection({
     setHistoryOpen: (open: boolean) => void;
 }) {
     const [selectedHistoryFile, setSelectedHistoryFile] = useState('');
+    const [outputAlignment, setOutputAlignment] = useState<OutputAlignment>(() => {
+        const savedAlignment = localStorage.getItem(OUTPUT_ALIGNMENT_KEY);
+        return savedAlignment === 'left' || savedAlignment === 'right' ? savedAlignment : 'center';
+    });
     const { drawnCards, selectedCardIndex, plot, plotStatus } = viewState.editor;
 
     const selectedCard: TarotCard | undefined =
@@ -336,6 +363,11 @@ export function TarotReadingSection({
             actions.onLoadTarotReading();
             setHistoryOpen(false);
         }
+    };
+
+    const handleOutputAlignmentChange = (alignment: OutputAlignment) => {
+        setOutputAlignment(alignment);
+        localStorage.setItem(OUTPUT_ALIGNMENT_KEY, alignment);
     };
 
     const { body, advice } = extractAdvice(plot);
@@ -888,10 +920,25 @@ export function TarotReadingSection({
                         ...(layout === 'right' ? { paddingLeft: '16px', overflowY: 'auto' } : { paddingTop: '16px' })
                     }}
                 >
-                    <div className="section-header-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                    <div className="section-header-actions" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
                         <div className="section-header-title" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <span style={{ fontSize: '1.2rem' }}>🔮</span>
                             <h2 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>종합적인 해설</h2>
+                        </div>
+                        <div className="output-alignment-control" role="group" aria-label="해설 출력창 배치">
+                            {outputAlignmentOptions.map(({ value, label }) => (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    className={`output-alignment-button${outputAlignment === value ? ' active' : ''}`}
+                                    aria-label={label}
+                                    title={label}
+                                    aria-pressed={outputAlignment === value}
+                                    onClick={() => handleOutputAlignmentChange(value)}
+                                >
+                                    <OutputAlignmentIcon alignment={value} />
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -913,7 +960,7 @@ export function TarotReadingSection({
                             <div className="markdown-preview-container" style={{ flexGrow: 1, overflowY: 'auto' }}>
                                 <MarkdownPreview
                                     id="plot-content-preview"
-                                    className="markdown-body inputbox textarea-plot"
+                                    className={`markdown-body inputbox textarea-plot output-align-${outputAlignment}`}
                                     content={body}
                                     style={{ height: '100%', minHeight: '100%' }}
                                 />

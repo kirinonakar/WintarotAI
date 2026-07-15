@@ -997,6 +997,62 @@ body {
   background-color: var(--primary-color) !important;
 }
 
+.output-alignment-control {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  gap: 2px;
+  background: var(--unselected-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.output-alignment-button {
+  width: 30px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.output-alignment-button:hover {
+  color: var(--text-dark);
+  background: var(--secondary-hover);
+}
+
+.output-alignment-button.active {
+  color: var(--primary-color);
+  background: var(--selected-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.output-alignment-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+#plot-content-preview.output-align-left {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+#plot-content-preview.output-align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#plot-content-preview.output-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
 strong, b {
   font-weight: 700 !important;
 }
