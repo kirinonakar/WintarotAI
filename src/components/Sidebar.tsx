@@ -4,6 +4,7 @@ import type {
     ApiSettingsViewState,
     PromptEditorViewState,
     RuntimeActivityViewState,
+    ThinkingLevel,
 } from '../types/app.js';
 import type { ActionProps, AppProps } from './componentTypes.js';
 
@@ -33,6 +34,7 @@ function ApiSettingsCard({
                     <option value="OpenCode Go">OpenCode Go</option>
                     <option value="Zen">OpenCode Zen</option>
                     <option value="Cerebras">Cerebras</option>
+                    <option value="Unsloth Desktop">Unsloth Desktop</option>
                 </select>
             </div>
 
@@ -94,6 +96,24 @@ function ApiSettingsCard({
                         🔄
                     </button>
                 </div>
+            </div>
+
+            <div className="input-group">
+                <label htmlFor="thinking-level">Thinking Level</label>
+                <select
+                    id="thinking-level"
+                    className="inputbox"
+                    value={apiSettings.thinkingLevel}
+                    onChange={event => actions.onThinkingLevelChange(event.currentTarget.value as ThinkingLevel)}
+                >
+                    <option value="default">default</option>
+                    <option value="disable">disable</option>
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                    <option value="xhigh">xhigh</option>
+                    <option value="max">max</option>
+                </select>
             </div>
         </div>
     );
@@ -261,20 +281,25 @@ function LayoutSettingsCard({
                 </div>
             </div>
 
-            <div className="action-buttons-group">
+            <div
+                className="action-buttons-group"
+                style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', gap: '8px' }}
+            >
                 <button
                     className="btn btn-secondary btn-block"
                     type="button"
                     onClick={onOpenOutputFolder}
+                    style={{ flex: 1 }}
                 >
-                    📂 결과 폴더 열기
+                    📂 결과 폴더
                 </button>
                 <button
                     className="btn btn-secondary btn-block"
                     type="button"
                     onClick={onViewHistory}
+                    style={{ flex: 1 }}
                 >
-                    ⏰ 과거 히스토리 보기
+                    ⏰ 히스토리
                 </button>
             </div>
         </div>

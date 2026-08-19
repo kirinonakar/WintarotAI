@@ -37,6 +37,7 @@ fn stream_completion_error(
 
 pub async fn generate_plot_stream(
     api_base: &str,
+    provider: &str,
     model_name: &str,
     api_key: &str,
     system_prompt: &str,
@@ -44,6 +45,7 @@ pub async fn generate_plot_stream(
     temperature: f32,
     top_p: f32,
     repetition_penalty: f32,
+    thinking_level: &str,
     max_tokens: u32,
     on_event: tauri::ipc::Channel<StreamEvent>,
     stop_flag: Arc<AtomicBool>,
@@ -83,9 +85,7 @@ pub async fn generate_plot_stream(
         body_map.insert("repetition_penalty".to_string(), json!(repetition_penalty));
     }
 
-    if api_base.contains("opencode.ai") && model_name.to_ascii_lowercase().contains("deepseek") {
-        body_map.insert("thinking".to_string(), json!({ "type": "disabled" }));
-    }
+    insert_thinking_params(&mut body_map, provider, thinking_level);
 
     let request_body = Value::Object(body_map);
 
@@ -245,4 +245,30 @@ pub async fn generate_plot_stream(
     ));
 
     Ok(())
+}
+
+fn insert_thinking_params(
+    body_map: &mut serde_json::Map<String, Value>,
+    provider: &str,
+    thinking_level: &str,
+) {
+    match thinking_level.trim().to_ascii_lowercase().as_str() {
+        "" | "default" => {}
+        "disable" | "disabled" => {
+            if provider == "Unsloth Desktop" {
+                body_map.insert("enable_thinking".to_string(), json!(false));
+            } else {
+                body_map.insert("thinking".to_string(), json!({ "type": "disabled" }));
+            }
+        }
+        level @ ("low" | "medium" | "high" | "xhigh" | "max") => {
+            if provider == "Unsloth Desktop" {
+                body_map.insert("enable_thinking".to_string(), json!(true));
+            } else {
+                body_map.insert("thinking".to_string(), json!({ "type": "enabled" }));
+            }
+            body_map.insert("reasoning_effort".to_string(), json!(level));
+        }
+        _ => {}
+    }
 }

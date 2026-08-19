@@ -66,7 +66,7 @@ export function createRuntimeWorkflowActions(options: RuntimeWorkflowActionOptio
     function requireApiKey() {
         const provider = options.getProvider();
         const { apiKey } = runtimeViewStateStore.getSnapshot().apiSettings;
-        const apiKeyProviders: ApiProvider[] = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+        const apiKeyProviders: ApiProvider[] = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras', 'Unsloth Desktop'];
         if (!apiKeyProviders.includes(provider) || apiKey.trim()) return false;
         showToast(`Please enter a ${provider} API Key in the sidebar.`, 'warning');
         return true;
@@ -147,7 +147,7 @@ ${cardDescriptions}
         setPlotStatus('⏳ 해설을 작성하고 있습니다...', 'generating');
 
         try {
-            const { apiBase, apiKey, modelName } = stateSnapshot.apiSettings;
+            const { apiBase, apiKey, modelName, thinkingLevel } = stateSnapshot.apiSettings;
             const temperature = parseFloat(stateSnapshot.generationParams.temperature);
             const topP = parseFloat(stateSnapshot.generationParams.topP);
             const repetitionPenalty = parseFloat(stateSnapshot.generationParams.repetitionPenalty);
@@ -155,6 +155,7 @@ ${cardDescriptions}
             await generatePlotStream(
                 {
                     apiBase,
+                    provider: stateSnapshot.apiSettings.provider,
                     modelName,
                     apiKey: apiKey || 'lm-studio',
                     systemPrompt,
@@ -162,6 +163,7 @@ ${cardDescriptions}
                     temperature,
                     topP,
                     repetitionPenalty,
+                    thinkingLevel,
                     maxTokens: 8192,
                 },
                 (event: PlotStreamEvent) => {

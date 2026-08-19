@@ -1,4 +1,5 @@
-export type ApiProvider = 'LM Studio' | 'Google' | 'Ollama' | 'Ollama Cloud' | 'OpenCode Go' | 'Zen' | 'Cerebras';
+export type ApiProvider = 'LM Studio' | 'Google' | 'Ollama' | 'Ollama Cloud' | 'OpenCode Go' | 'Zen' | 'Cerebras' | 'Unsloth Desktop';
+export type ThinkingLevel = 'default' | 'disable' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type Language = 'Korean' | 'Japanese' | 'English';
 export type ThemeMode = 'light' | 'dark';
 
@@ -39,6 +40,7 @@ export interface ApiSettingsSnapshot {
     provider: ApiProvider;
     apiBase: string;
     modelName: string;
+    thinkingLevel: ThinkingLevel;
 }
 
 export interface SavedAppSettings {
@@ -58,6 +60,9 @@ export interface SavedAppSettings {
     zenModel: string | null;
     cerebrasBase: string | null;
     cerebrasModel: string | null;
+    unslothBase: string | null;
+    unslothModel: string | null;
+    thinkingLevel: ThinkingLevel;
 }
 
 export interface ApiSettingsViewState {
@@ -67,6 +72,7 @@ export interface ApiSettingsViewState {
     showApiKey: boolean;
     modelName: string;
     modelOptions: string[];
+    thinkingLevel: ThinkingLevel;
     apiStatus: string;
     isRefreshingModels: boolean;
 }
@@ -124,6 +130,7 @@ export interface NovelgenRuntimeActions {
     onApiBaseChange: (apiBase: string) => void;
     onApiKeyChange: (apiKey: string) => void;
     onModelChange: (modelName: string) => void;
+    onThinkingLevelChange: (thinkingLevel: ThinkingLevel) => void;
     onSystemPresetChange: (presetName: string) => void; // repurposed for tarot type change
     onSystemPromptChange: (systemPrompt: string) => void; // repurposed for consultation detail change
     

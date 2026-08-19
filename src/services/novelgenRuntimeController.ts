@@ -1,4 +1,4 @@
-import type { NovelgenRuntimeActions } from '../types/app.js';
+import type { NovelgenRuntimeActions, ThinkingLevel } from '../types/app.js';
 import { createAppSettingsController } from './appSettingsUiService.js';
 import { createRuntimeBootstrap } from './runtimeBootstrapService.js';
 import { reloadNovelList } from './savedContentService.js';
@@ -38,6 +38,10 @@ export function createNovelgenRuntimeController(): NovelgenRuntimeController {
         },
         onModelChange: (modelName) => {
             appSettings.updateModelName(modelName);
+            void appSettings.saveSettings();
+        },
+        onThinkingLevelChange: (thinkingLevel: ThinkingLevel) => {
+            appSettings.updateThinkingLevel(thinkingLevel);
             void appSettings.saveSettings();
         },
         onSystemPresetChange: workflowActions.onSystemPresetChange,

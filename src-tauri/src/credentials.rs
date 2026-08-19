@@ -12,13 +12,15 @@ const ZEN_CREDENTIAL_USERNAME: &str = "OpenCode Zen API Key";
 
 const CEREBRAS_CREDENTIAL_TARGET: &str = "WinTarot.CerebrasApiKey";
 const CEREBRAS_CREDENTIAL_USERNAME: &str = "Cerebras API Key";
+const UNSLOTH_CREDENTIAL_TARGET: &str = "WinTarot.UnslothDesktopApiKey";
+const UNSLOTH_CREDENTIAL_USERNAME: &str = "Unsloth Desktop API Key";
 #[cfg(windows)]
 mod platform {
     use super::{
         CEREBRAS_CREDENTIAL_TARGET, CEREBRAS_CREDENTIAL_USERNAME, CREDENTIAL_TARGET,
         CREDENTIAL_USERNAME, OLLAMA_CREDENTIAL_TARGET, OLLAMA_CREDENTIAL_USERNAME,
-        OPENCODE_GO_CREDENTIAL_TARGET, OPENCODE_GO_CREDENTIAL_USERNAME, ZEN_CREDENTIAL_TARGET,
-        ZEN_CREDENTIAL_USERNAME,
+        OPENCODE_GO_CREDENTIAL_TARGET, OPENCODE_GO_CREDENTIAL_USERNAME, UNSLOTH_CREDENTIAL_TARGET,
+        UNSLOTH_CREDENTIAL_USERNAME, ZEN_CREDENTIAL_TARGET, ZEN_CREDENTIAL_USERNAME,
     };
     use std::ffi::c_void;
     use std::ptr::{null_mut, NonNull};
@@ -269,6 +271,22 @@ mod platform {
     pub fn delete_cerebras_api_key() -> Result<(), String> {
         delete_credential(CEREBRAS_CREDENTIAL_TARGET)
     }
+
+    pub fn read_unsloth_api_key() -> Result<Option<String>, String> {
+        read_credential(UNSLOTH_CREDENTIAL_TARGET)
+    }
+
+    pub fn write_unsloth_api_key(api_key: &str) -> Result<(), String> {
+        write_credential(
+            UNSLOTH_CREDENTIAL_TARGET,
+            UNSLOTH_CREDENTIAL_USERNAME,
+            api_key,
+        )
+    }
+
+    pub fn delete_unsloth_api_key() -> Result<(), String> {
+        delete_credential(UNSLOTH_CREDENTIAL_TARGET)
+    }
 }
 
 #[cfg(not(windows))]
@@ -332,11 +350,24 @@ mod platform {
     pub fn delete_cerebras_api_key() -> Result<(), String> {
         Ok(())
     }
+
+    pub fn read_unsloth_api_key() -> Result<Option<String>, String> {
+        Ok(None)
+    }
+
+    pub fn write_unsloth_api_key(_api_key: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    pub fn delete_unsloth_api_key() -> Result<(), String> {
+        Ok(())
+    }
 }
 
 pub use platform::{
     delete_cerebras_api_key, delete_google_api_key, delete_ollama_cloud_api_key,
-    delete_opencode_go_api_key, delete_zen_api_key, read_cerebras_api_key, read_google_api_key,
-    read_ollama_cloud_api_key, read_opencode_go_api_key, read_zen_api_key, write_cerebras_api_key,
-    write_google_api_key, write_ollama_cloud_api_key, write_opencode_go_api_key, write_zen_api_key,
+    delete_opencode_go_api_key, delete_unsloth_api_key, delete_zen_api_key, read_cerebras_api_key,
+    read_google_api_key, read_ollama_cloud_api_key, read_opencode_go_api_key, read_unsloth_api_key,
+    read_zen_api_key, write_cerebras_api_key, write_google_api_key, write_ollama_cloud_api_key,
+    write_opencode_go_api_key, write_unsloth_api_key, write_zen_api_key,
 };

@@ -8,7 +8,9 @@ import {
     DEFAULT_CEREBRAS_BASE,
     DEFAULT_LM_STUDIO_MODEL,
     DEFAULT_OPENCODE_GO_BASE,
+    DEFAULT_UNSLOTH_MODEL,
     DEFAULT_ZEN_BASE,
+    DEFAULT_UNSLOTH_BASE,
     OPENCODE_GO_MODELS,
     ZEN_MODELS,
     readSavedAppSettings,
@@ -36,13 +38,18 @@ export async function initializeNovelgenRuntime({
     const savedModel = savedSettings.model;
 
     if (savedSettings.provider) {
-        runtimeViewStateStore.setApiSettings({ provider: savedSettings.provider });
+        runtimeViewStateStore.setApiSettings({
+            provider: savedSettings.provider,
+            thinkingLevel: savedSettings.thinkingLevel,
+        });
+    } else {
+        runtimeViewStateStore.setApiSettings({ thinkingLevel: savedSettings.thinkingLevel });
     }
 
     try {
         console.log('[Frontend] Requesting API key load for provider:', savedProvider);
         let key = '';
-        const apiKeyProviders = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+        const apiKeyProviders = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras', 'Unsloth Desktop'];
         if (apiKeyProviders.includes(savedProvider)) {
             key = await loadApiKey(savedProvider);
         }
@@ -60,7 +67,7 @@ export async function initializeNovelgenRuntime({
 
     if (savedBase) runtimeViewStateStore.setApiSettings({ apiBase: savedBase });
 
-    const fetchableProviders = ['LM Studio', 'Ollama', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+    const fetchableProviders = ['LM Studio', 'Ollama', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras', 'Unsloth Desktop'];
     if (fetchableProviders.includes(savedProvider)) {
         await refreshModels();
     }
@@ -95,6 +102,11 @@ export async function initializeNovelgenRuntime({
         });
     } else if (savedProvider === 'Ollama' || savedProvider === 'Ollama Cloud') {
         runtimeViewStateStore.setApiSettings({ modelName: '' });
+    } else if (savedProvider === 'Unsloth Desktop') {
+        runtimeViewStateStore.setApiSettings({
+            modelName: savedSettings.unslothModel || DEFAULT_UNSLOTH_MODEL,
+            apiBase: savedSettings.unslothBase || DEFAULT_UNSLOTH_BASE,
+        });
     }
 
     restoreUiSettings();

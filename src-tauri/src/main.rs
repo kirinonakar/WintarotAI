@@ -65,6 +65,7 @@ async fn fetch_models(api_base: String, api_key: Option<String>) -> Result<Vec<S
 #[derive(serde::Deserialize)]
 pub struct GenerationParams {
     api_base: String,
+    provider: String,
     model_name: String,
     api_key: String,
     system_prompt: String,
@@ -72,6 +73,7 @@ pub struct GenerationParams {
     temperature: f32,
     top_p: f32,
     repetition_penalty: f32,
+    thinking_level: String,
     max_tokens: u32,
 }
 
@@ -86,6 +88,7 @@ async fn generate_plot(
     params.api_key = with_request_api_key(&params.api_key);
     generator::generate_plot_stream(
         &params.api_base,
+        &params.provider,
         &params.model_name,
         &params.api_key,
         &params.system_prompt,
@@ -93,6 +96,7 @@ async fn generate_plot(
         params.temperature,
         params.top_p,
         params.repetition_penalty,
+        &params.thinking_level,
         params.max_tokens,
         on_event,
         state.stop_flag.clone(),
@@ -233,6 +237,12 @@ fn load_api_key(provider: Option<String>) -> Result<String, String> {
             key.map(|value| normalize_api_key(&value))
                 .unwrap_or_default()
         })
+    } else if provider == "Unsloth Desktop" {
+        println!("[Backend] Loading Unsloth Desktop API key from Windows Credential Manager");
+        credentials::read_unsloth_api_key().map(|key| {
+            key.map(|value| normalize_api_key(&value))
+                .unwrap_or_default()
+        })
     } else {
         Ok(String::new())
     }
@@ -281,6 +291,14 @@ fn save_api_key(provider: Option<String>, api_key: String) -> Result<String, Str
             Ok(String::new())
         } else {
             credentials::write_cerebras_api_key(&key)?;
+            Ok(key)
+        }
+    } else if provider == "Unsloth Desktop" {
+        if key.is_empty() {
+            credentials::delete_unsloth_api_key()?;
+            Ok(String::new())
+        } else {
+            credentials::write_unsloth_api_key(&key)?;
             Ok(key)
         }
     } else {

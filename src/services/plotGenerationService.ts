@@ -1,7 +1,9 @@
 import { Channel, invoke } from '../modules/tauri_api.js';
+import type { ApiProvider, ThinkingLevel } from '../types/app.js';
 
 interface GeneratePlotParams {
     apiBase: string;
+    provider: ApiProvider;
     modelName: string;
     apiKey: string;
     systemPrompt: string;
@@ -9,6 +11,7 @@ interface GeneratePlotParams {
     temperature: number;
     topP: number;
     repetitionPenalty: number;
+    thinkingLevel: ThinkingLevel;
     maxTokens?: number;
 }
 
@@ -29,6 +32,7 @@ export async function generatePlotStream(
     await invoke('generate_plot', {
         params: {
             api_base: params.apiBase,
+            provider: params.provider,
             model_name: params.modelName,
             api_key: params.apiKey,
             system_prompt: params.systemPrompt,
@@ -36,6 +40,7 @@ export async function generatePlotStream(
             temperature: params.temperature,
             top_p: params.topP,
             repetition_penalty: params.repetitionPenalty,
+            thinking_level: params.thinkingLevel,
             max_tokens: params.maxTokens ?? 8192,
         },
         onEvent,

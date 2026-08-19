@@ -37,8 +37,8 @@ WintarotAI를 사용하면 인생, 커리어, 연애 등 다양한 질문에 대
   - **결과 폴더 열기 & 히스토리 보기**: 사이드바 하단 버튼을 통해 간편하게 결과 저장 디렉토리를 열거나 과거 히스토리를 불러올 수 있습니다.
 
 - **강력한 API 프로바이더 연동**
-  - 개인정보 보호와 오프라인 실행을 위해 로컬 **LM Studio** 또는 **Ollama**를 연동할 수 있습니다.
-  - 고성능 연동을 위해 **Google Gemini API**, **Ollama Cloud**, **OpenCode Go**, **OpenCode Zen**, **Cerebras** 등 다양한 클라우드 API를 독립된 키 저장 방식으로 지원합니다.
+  - 개인정보 보호와 오프라인 실행을 위해 로컬 **LM Studio**, **Ollama**, **Unsloth Desktop**을 연동할 수 있습니다.
+  - 고성능 연동을 위해 **Google Gemini API**, **Ollama Cloud**, **OpenCode Go**, **OpenCode Zen**, **Cerebras** 등 다양한 API를 독립된 키 저장 방식으로 지원합니다.
 
 ---
 

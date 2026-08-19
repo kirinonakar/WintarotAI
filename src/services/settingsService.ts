@@ -8,6 +8,8 @@ const DEFAULT_OLLAMA_CLOUD_BASE = 'https://ollama.com/v1';
 export const DEFAULT_OPENCODE_GO_BASE = 'https://opencode.ai/zen/go/v1';
 export const DEFAULT_ZEN_BASE = 'https://opencode.ai/zen/v1';
 export const DEFAULT_CEREBRAS_BASE = 'https://api.cerebras.ai/v1';
+export const DEFAULT_UNSLOTH_BASE = 'http://localhost:8888/v1';
+export const DEFAULT_UNSLOTH_MODEL = 'default';
 
 export const GOOGLE_MODELS = [
     DEFAULT_GOOGLE_MODEL,
@@ -56,7 +58,7 @@ export const CEREBRAS_MODELS = [
 ];
 
 function asApiProvider(value: string | null | undefined): ApiProvider | null {
-    const providers: ApiProvider[] = ['LM Studio', 'Google', 'Ollama', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras'];
+    const providers: ApiProvider[] = ['LM Studio', 'Google', 'Ollama', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras', 'Unsloth Desktop'];
     return providers.find(p => p === value) || null;
 }
 
@@ -78,6 +80,9 @@ export function readSavedAppSettings(): SavedAppSettings {
         zenModel: localStorage.getItem('api-model-zen'),
         cerebrasBase: localStorage.getItem('api-base-cerebras'),
         cerebrasModel: localStorage.getItem('api-model-cerebras'),
+        unslothBase: localStorage.getItem('api-base-unsloth'),
+        unslothModel: localStorage.getItem('api-model-unsloth'),
+        thinkingLevel: asThinkingLevel(localStorage.getItem('api-thinking-level')),
     };
 }
 
@@ -85,6 +90,7 @@ export function saveApiSettings(settings: ApiSettingsSnapshot) {
     localStorage.setItem('api-provider', settings.provider);
     localStorage.setItem('api-base', settings.apiBase);
     localStorage.setItem('api-model', settings.modelName);
+    localStorage.setItem('api-thinking-level', settings.thinkingLevel);
 
     if (settings.provider === 'LM Studio') {
         localStorage.setItem('api-base-lmstudio', settings.apiBase);
@@ -106,6 +112,9 @@ export function saveApiSettings(settings: ApiSettingsSnapshot) {
     } else if (settings.provider === 'Cerebras') {
         localStorage.setItem('api-base-cerebras', settings.apiBase);
         localStorage.setItem('api-model-cerebras', settings.modelName);
+    } else if (settings.provider === 'Unsloth Desktop') {
+        localStorage.setItem('api-base-unsloth', settings.apiBase);
+        localStorage.setItem('api-model-unsloth', settings.modelName);
     }
 }
 
@@ -127,6 +136,9 @@ export function getProviderBase(provider: ApiProvider, saved: SavedAppSettings):
     }
     if (provider === 'Cerebras') {
         return saved.cerebrasBase || DEFAULT_CEREBRAS_BASE;
+    }
+    if (provider === 'Unsloth Desktop') {
+        return saved.unslothBase || DEFAULT_UNSLOTH_BASE;
     }
     return saved.lmStudioBase || DEFAULT_LM_STUDIO_BASE;
 }
@@ -150,5 +162,15 @@ export function getProviderModel(provider: ApiProvider, saved: SavedAppSettings)
     if (provider === 'Cerebras') {
         return saved.cerebrasModel || '';
     }
+    if (provider === 'Unsloth Desktop') {
+        return saved.unslothModel || DEFAULT_UNSLOTH_MODEL;
+    }
     return saved.lmStudioModel || '';
+}
+
+function asThinkingLevel(value: string | null): SavedAppSettings['thinkingLevel'] {
+    const levels: SavedAppSettings['thinkingLevel'][] = ['default', 'disable', 'low', 'medium', 'high', 'xhigh', 'max'];
+    return levels.includes(value as SavedAppSettings['thinkingLevel'])
+        ? value as SavedAppSettings['thinkingLevel']
+        : 'default';
 }
