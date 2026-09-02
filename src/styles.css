@@ -934,6 +934,15 @@ body {
   margin-top: 12px;
 }
 
+/* Keep the reading actions stable when the primary button changes state. */
+#btn-draw-cards,
+#btn-clear-reading {
+  flex: 0 0 36px;
+  height: 36px;
+  min-height: 36px;
+  white-space: nowrap;
+}
+
 /* Scrollbar adjustment */
 .cards-list-row::-webkit-scrollbar {
   height: 6px;
