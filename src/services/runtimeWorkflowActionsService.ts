@@ -66,7 +66,8 @@ export function createRuntimeWorkflowActions(options: RuntimeWorkflowActionOptio
     function requireApiKey() {
         const provider = options.getProvider();
         const { apiKey } = runtimeViewStateStore.getSnapshot().apiSettings;
-        const apiKeyProviders: ApiProvider[] = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Zen', 'Cerebras', 'Unsloth Desktop'];
+        // OpenCode Zen allows keyless (anonymous/trial) requests, so no key required.
+        const apiKeyProviders: ApiProvider[] = ['Google', 'Ollama Cloud', 'OpenCode Go', 'Cerebras', 'Unsloth Desktop'];
         if (!apiKeyProviders.includes(provider) || apiKey.trim()) return false;
         showToast(`Please enter a ${provider} API Key in the sidebar.`, 'warning');
         return true;
@@ -157,7 +158,12 @@ ${cardDescriptions}
                     apiBase,
                     provider: stateSnapshot.apiSettings.provider,
                     modelName,
-                    apiKey: apiKey || 'lm-studio',
+                    // Zen free models require the Authorization header to be
+                    // omitted. Do not replace an empty Zen key with a local
+                    // provider placeholder.
+                    apiKey: stateSnapshot.apiSettings.provider === 'Zen'
+                        ? apiKey
+                        : (apiKey || 'lm-studio'),
                     systemPrompt,
                     prompt: userPrompt,
                     temperature,

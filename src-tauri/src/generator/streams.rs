@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 
+use super::api::should_send_bearer_auth;
 use super::text::clean_thought_tags;
 use super::types::StreamEvent;
 
@@ -16,6 +17,36 @@ fn stream_finish_reason(json: &Value) -> Option<String> {
     json["choices"][0]["finish_reason"]
         .as_str()
         .map(|s| s.to_string())
+}
+
+fn non_empty_delta_string<'a>(delta: &'a Value, field: &str) -> Option<&'a str> {
+    delta
+        .get(field)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+}
+
+fn delta_reasoning<'a>(delta: &'a Value) -> Option<&'a str> {
+    // DeepSeek's native endpoint uses `reasoning_content`. OpenCode Go's
+    // OpenAI-compatible gateway may expose the same stream as `reasoning`.
+    non_empty_delta_string(delta, "reasoning_content")
+        .or_else(|| non_empty_delta_string(delta, "reasoning"))
+}
+
+fn close_structured_thinking_before_content(
+    full_text: &mut String,
+    in_thinking: &mut bool,
+    has_structured_thinking: &mut bool,
+) {
+    if !*has_structured_thinking {
+        return;
+    }
+
+    if *in_thinking {
+        full_text.push_str("\n</think>\n");
+    }
+    *in_thinking = false;
+    *has_structured_thinking = false;
 }
 
 fn stream_completion_error(
@@ -89,13 +120,12 @@ pub async fn generate_plot_stream(
 
     let request_body = Value::Object(body_map);
 
-    let res = client
-        .post(&url)
-        .bearer_auth(api_key)
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut request = client.post(&url).json(&request_body);
+    if should_send_bearer_auth(api_key) {
+        request = request.bearer_auth(api_key.trim());
+    }
+
+    let res = request.send().await.map_err(|e| e.to_string())?;
 
     let status = res.status();
     if !status.is_success() {
@@ -110,6 +140,7 @@ pub async fn generate_plot_stream(
     let mut stream = res.bytes_stream().eventsource();
     let mut full_text = String::new();
     let mut in_thinking = false;
+    let mut has_structured_thinking = false;
     let mut thinking_tokens: u32 = 0;
     let mut count = 0;
     let read_timeout_duration = Duration::from_secs(STREAM_READ_TIMEOUT_SECS);
@@ -133,7 +164,8 @@ pub async fn generate_plot_stream(
                         terminal_finish_reason = Some(reason);
                     }
                     let delta = &json["choices"][0]["delta"];
-                    if let Some(reasoning) = delta["reasoning_content"].as_str() {
+                    if let Some(reasoning) = delta_reasoning(delta) {
+                        has_structured_thinking = true;
                         if !in_thinking {
                             full_text.push_str("<think>\n");
                             in_thinking = true;
@@ -149,42 +181,55 @@ pub async fn generate_plot_stream(
                                 Some(format!("💭 Thinking...({} tokens)", thinking_tokens)),
                             ));
                         }
-                    } else if let Some(content) = delta["content"].as_str() {
-                        if !content.is_empty() {
-                            // Detect inline <think> tags (Qwen3, GLM, etc.)
-                            if content.contains("<think>") && !in_thinking {
-                                in_thinking = true;
-                            }
-                            if in_thinking && content.contains("</think>") {
-                                in_thinking = false;
-                                // Immediately notify UI that thinking is done
+                    }
+
+                    // Some gateways include an empty reasoning field on every
+                    // delta. Only a non-empty value above counts as reasoning,
+                    // so that metadata cannot mask visible content.
+                    if let Some(content) = non_empty_delta_string(delta, "content") {
+                        // Structured reasoning fields do not carry a closing
+                        // </think> tag. Close the synthetic block before the
+                        // first visible answer chunk, otherwise the cleaner
+                        // would remove the answer together with the reasoning.
+                        close_structured_thinking_before_content(
+                            &mut full_text,
+                            &mut in_thinking,
+                            &mut has_structured_thinking,
+                        );
+
+                        // Detect inline <think> tags (Qwen3, GLM, etc.)
+                        if content.contains("<think>") && !in_thinking {
+                            in_thinking = true;
+                        }
+                        if in_thinking && content.contains("</think>") {
+                            in_thinking = false;
+                            // Immediately notify UI that thinking is done
+                            let _ = on_event.send(StreamEvent::full(
+                                clean_thought_tags(&full_text),
+                                false,
+                                None,
+                                Some("⏳ Generating...".to_string()),
+                            ));
+                        }
+                        full_text.push_str(content);
+                        count += 1;
+                        if in_thinking {
+                            thinking_tokens += 1;
+                            if count % 5 == 0 {
                                 let _ = on_event.send(StreamEvent::full(
                                     clean_thought_tags(&full_text),
                                     false,
                                     None,
-                                    Some("⏳ Generating...".to_string()),
+                                    Some(format!("💭 Thinking...({} tokens)", thinking_tokens)),
                                 ));
                             }
-                            full_text.push_str(content);
-                            count += 1;
-                            if in_thinking {
-                                thinking_tokens += 1;
-                                if count % 5 == 0 {
-                                    let _ = on_event.send(StreamEvent::full(
-                                        clean_thought_tags(&full_text),
-                                        false,
-                                        None,
-                                        Some(format!("💭 Thinking...({} tokens)", thinking_tokens)),
-                                    ));
-                                }
-                            } else if count % 5 == 0 {
-                                let _ = on_event.send(StreamEvent::full(
-                                    clean_thought_tags(&full_text),
-                                    false,
-                                    None,
-                                    Some("⏳ Generating...".to_string()),
-                                ));
-                            }
+                        } else if count % 5 == 0 {
+                            let _ = on_event.send(StreamEvent::full(
+                                clean_thought_tags(&full_text),
+                                false,
+                                None,
+                                Some("⏳ Generating...".to_string()),
+                            ));
                         }
                     }
                 }
@@ -270,5 +315,69 @@ fn insert_thinking_params(
             body_map.insert("reasoning_effort".to_string(), json!(level));
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        close_structured_thinking_before_content, delta_reasoning, non_empty_delta_string,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn supports_open_code_go_reasoning_alias() {
+        let delta = json!({
+            "reasoning": "internal plan",
+            "content": "visible answer"
+        });
+
+        assert_eq!(delta_reasoning(&delta), Some("internal plan"));
+        assert_eq!(
+            non_empty_delta_string(&delta, "content"),
+            Some("visible answer")
+        );
+    }
+
+    #[test]
+    fn empty_reasoning_metadata_does_not_hide_content() {
+        let delta = json!({
+            "reasoning_content": "",
+            "content": "visible answer"
+        });
+
+        assert_eq!(delta_reasoning(&delta), None);
+        assert_eq!(
+            non_empty_delta_string(&delta, "content"),
+            Some("visible answer")
+        );
+    }
+
+    #[test]
+    fn prefers_native_reasoning_content_when_both_fields_exist() {
+        let delta = json!({
+            "reasoning_content": "native reasoning",
+            "reasoning": "gateway reasoning"
+        });
+
+        assert_eq!(delta_reasoning(&delta), Some("native reasoning"));
+    }
+
+    #[test]
+    fn closes_structured_reasoning_before_visible_content() {
+        let mut full_text = "<think>\ninternal plan".to_string();
+        let mut in_thinking = true;
+        let mut has_structured_thinking = true;
+
+        close_structured_thinking_before_content(
+            &mut full_text,
+            &mut in_thinking,
+            &mut has_structured_thinking,
+        );
+        full_text.push_str("visible answer");
+
+        assert_eq!(super::clean_thought_tags(&full_text), "visible answer");
+        assert!(!in_thinking);
+        assert!(!has_structured_thinking);
     }
 }

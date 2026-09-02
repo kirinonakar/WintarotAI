@@ -44,6 +44,13 @@ const OPENCODE_GO_MODELS: &[&str] = &[
 ];
 
 const ZEN_MODELS: &[&str] = &[
+    // Free models use the OpenAI-compatible Chat Completions endpoint.
+    // Keep these first so a keyless setup defaults to a free model.
+    "mimo-v2.5-free",
+    "big-pickle",
+    "ling-3.0-flash-fin-free",
+    "nemotron-3-ultra-free",
+    "nemotron-3.5-lightning-free",
     "glm-5.2",
     "glm-5.1",
     "kimi-k2.7-code",
@@ -60,6 +67,15 @@ const ZEN_MODELS: &[&str] = &[
 ];
 
 const CEREBRAS_MODELS: &[&str] = &["gemma-4-31b", "gpt-oss-120b", "zai-glm-4.7"];
+
+/// A missing API key means that no Authorization header should be sent.
+///
+/// This is required for OpenCode Zen's free models. Sending a placeholder
+/// token such as "public" or "lm-studio" makes Zen reject the request as an
+/// invalid API key.
+pub fn should_send_bearer_auth(api_key: &str) -> bool {
+    !api_key.trim().is_empty()
+}
 
 pub async fn fetch_models_impl(api_base: &str, api_key: &str) -> Result<Vec<String>, String> {
     let client = Client::builder()
@@ -85,8 +101,8 @@ pub async fn fetch_models_impl(api_base: &str, api_key: &str) -> Result<Vec<Stri
     };
 
     let mut request = client.get(&url);
-    if !api_key.is_empty() {
-        request = request.bearer_auth(api_key);
+    if should_send_bearer_auth(api_key) {
+        request = request.bearer_auth(api_key.trim());
     }
 
     match request.send().await {
@@ -104,5 +120,21 @@ pub async fn fetch_models_impl(api_base: &str, api_key: &str) -> Result<Vec<Stri
             Ok(fallback_models)
         }
         Err(_) => Ok(fallback_models),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_send_bearer_auth;
+
+    #[test]
+    fn does_not_authenticate_blank_keys() {
+        assert!(!should_send_bearer_auth(""));
+        assert!(!should_send_bearer_auth("   "));
+    }
+
+    #[test]
+    fn authenticates_non_blank_keys() {
+        assert!(should_send_bearer_auth("sk-test"));
     }
 }

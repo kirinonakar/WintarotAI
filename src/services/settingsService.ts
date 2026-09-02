@@ -35,7 +35,18 @@ export const OPENCODE_GO_MODELS = [
     'deepseek-v4-flash',
 ];
 
+// These models are available on OpenCode Zen without an API key and use the
+// OpenAI-compatible Chat Completions endpoint used by the Rust client.
+export const ZEN_FREE_MODELS = [
+    'mimo-v2.5-free',
+    'big-pickle',
+    'ling-3.0-flash-fin-free',
+    'nemotron-3-ultra-free',
+    'nemotron-3.5-lightning-free',
+];
+
 export const ZEN_MODELS = [
+    ...ZEN_FREE_MODELS,
     'glm-5.2',
     'glm-5.1',
     'kimi-k2.7-code',

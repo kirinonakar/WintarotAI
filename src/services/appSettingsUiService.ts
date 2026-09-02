@@ -13,6 +13,7 @@ import {
     CEREBRAS_MODELS,
     GOOGLE_MODELS,
     OPENCODE_GO_MODELS,
+    ZEN_FREE_MODELS,
     ZEN_MODELS,
     getProviderBase,
     getProviderModel,
@@ -50,7 +51,19 @@ export function createAppSettingsController({ getProvider }: AppSettingsControll
     }
 
     function updateApiKey(apiKey: string) {
-        runtimeViewStateStore.setApiSettings({ apiKey });
+        const provider = getProvider();
+        if (provider !== 'Zen') {
+            runtimeViewStateStore.setApiSettings({ apiKey });
+            return;
+        }
+
+        const currentModel = getApiSettings().modelName;
+        const modelOptions = apiKey.trim() ? ZEN_MODELS : ZEN_FREE_MODELS;
+        runtimeViewStateStore.setApiSettings({
+            apiKey,
+            modelOptions,
+            modelName: modelOptions.includes(currentModel) ? currentModel : modelOptions[0],
+        });
     }
 
     function updateModelName(modelName: string) {
@@ -88,13 +101,21 @@ export function createAppSettingsController({ getProvider }: AppSettingsControll
                 isRefreshingModels: true,
             });
 
-            const { apiBase, apiKey, modelName: currentModel } = getApiSettings();
+            const { apiBase, apiKey, modelName: currentModel, provider } = getApiSettings();
             const models = await fetchModelNames(apiBase, apiKey);
+            const isKeylessZen = provider === 'Zen' && !apiKey.trim();
+            let availableModels = models;
+            if (isKeylessZen) {
+                availableModels = models.filter(model => ZEN_FREE_MODELS.includes(model));
+                if (availableModels.length === 0) {
+                    availableModels = ZEN_FREE_MODELS;
+                }
+            }
 
-            if (models && models.length > 0) {
+            if (availableModels && availableModels.length > 0) {
                 runtimeViewStateStore.setApiSettings({
-                    modelOptions: models,
-                    modelName: models.includes(currentModel) ? currentModel : models[0],
+                    modelOptions: availableModels,
+                    modelName: availableModels.includes(currentModel) ? currentModel : availableModels[0],
                 });
                 console.log('[Frontend] Models updated.');
             }
@@ -166,15 +187,16 @@ export function createAppSettingsController({ getProvider }: AppSettingsControll
                 });
             } else if (provider === 'Zen') {
                 const savedZenModel = getProviderModel(provider, savedSettings);
-                const modelName = savedZenModel || ZEN_MODELS[0];
+                const zenModels = loadedKey.trim() ? ZEN_MODELS : ZEN_FREE_MODELS;
+                const modelName = zenModels.includes(savedZenModel) ? savedZenModel : zenModels[0];
                 runtimeViewStateStore.setApiSettings({
                     provider,
                     apiBase: getProviderBase(provider, savedSettings),
                     apiKey: loadedKey,
                     showApiKey: true,
-                    modelOptions: ZEN_MODELS.includes(modelName)
-                        ? ZEN_MODELS
-                        : [...ZEN_MODELS, modelName],
+                    modelOptions: loadedKey.trim()
+                        ? (ZEN_MODELS.includes(modelName) ? ZEN_MODELS : [...ZEN_MODELS, modelName])
+                        : ZEN_FREE_MODELS,
                     modelName,
                 });
             } else if (provider === 'Cerebras') {

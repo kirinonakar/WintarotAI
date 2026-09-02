@@ -74,12 +74,16 @@ export async function initializeNovelgenRuntime({
 
     if (savedModel) {
         const { modelOptions } = runtimeViewStateStore.getSnapshot().apiSettings;
-        runtimeViewStateStore.setApiSettings({
-            modelName: savedModel,
-            modelOptions: modelOptions.includes(savedModel)
-                ? modelOptions
-                : [...modelOptions, savedModel],
-        });
+        // A previously selected paid Zen model must not be restored when the
+        // user is now running without a Zen API key.
+        if (savedProvider !== 'Zen' || modelOptions.includes(savedModel)) {
+            runtimeViewStateStore.setApiSettings({
+                modelName: savedModel,
+                modelOptions: modelOptions.includes(savedModel)
+                    ? modelOptions
+                    : [...modelOptions, savedModel],
+            });
+        }
     } else if (savedProvider === 'LM Studio') {
         runtimeViewStateStore.setApiSettings({ modelName: DEFAULT_LM_STUDIO_MODEL });
     } else if (savedProvider === 'OpenCode Go') {

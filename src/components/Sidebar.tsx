@@ -55,14 +55,14 @@ function ApiSettingsCard({
                         : apiSettings.provider === 'Ollama Cloud'
                             ? 'Ollama Cloud API Key'
                             : apiSettings.provider === 'Zen'
-                                ? 'OpenCode Zen API Key'
+                                ? 'OpenCode Zen API Key (선택)'
                                 : `${apiSettings.provider} API Key`}
                 </label>
                 <input
                     id="api-key"
                     type="password"
                     className="inputbox"
-                    placeholder="Enter API Key"
+                    placeholder={apiSettings.provider === 'Zen' ? '무료 모델은 비워두세요' : 'Enter API Key'}
                     value={apiSettings.apiKey}
                     onChange={event => actions.onApiKeyChange(event.currentTarget.value)}
                 />
