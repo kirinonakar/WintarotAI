@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 
-use super::api::{add_opencode_go_headers, should_send_bearer_auth};
+use super::api::{add_opencode_headers, should_send_bearer_auth};
 use super::text::clean_thought_tags;
 use super::types::StreamEvent;
 
@@ -121,7 +121,7 @@ pub async fn generate_plot_stream(
 
     let request_body = Value::Object(body_map);
 
-    let mut request = add_opencode_go_headers(
+    let mut request = add_opencode_headers(
         client.post(&url).json(&request_body),
         provider,
         opencode_session_id,
