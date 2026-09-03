@@ -102,7 +102,7 @@ export function createAppSettingsController({ getProvider }: AppSettingsControll
             });
 
             const { apiBase, apiKey, modelName: currentModel, provider } = getApiSettings();
-            const models = await fetchModelNames(apiBase, apiKey);
+            const models = await fetchModelNames(apiBase, apiKey, provider);
             const isKeylessZen = provider === 'Zen' && !apiKey.trim();
             let availableModels = models;
             if (isKeylessZen) {

@@ -1,6 +1,9 @@
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use std::time::Duration;
+
+const OPENCODE_SESSION_HEADER: &str = "x-opencode-session";
+const OPENCODE_USER_AGENT: &str = concat!("WintarotAI/", env!("CARGO_PKG_VERSION"));
 
 #[derive(Deserialize)]
 struct ModelList {
@@ -77,7 +80,26 @@ pub fn should_send_bearer_auth(api_key: &str) -> bool {
     !api_key.trim().is_empty()
 }
 
-pub async fn fetch_models_impl(api_base: &str, api_key: &str) -> Result<Vec<String>, String> {
+pub fn add_opencode_go_headers(
+    request: RequestBuilder,
+    provider: &str,
+    session_id: &str,
+) -> RequestBuilder {
+    if provider != "OpenCode Go" || session_id.trim().is_empty() {
+        return request;
+    }
+
+    request
+        .header(OPENCODE_SESSION_HEADER, session_id)
+        .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
+}
+
+pub async fn fetch_models_impl(
+    api_base: &str,
+    api_key: &str,
+    provider: &str,
+    opencode_session_id: &str,
+) -> Result<Vec<String>, String> {
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -100,7 +122,7 @@ pub async fn fetch_models_impl(api_base: &str, api_key: &str) -> Result<Vec<Stri
         LM_STUDIO_MODELS.iter().map(|&s| s.to_string()).collect()
     };
 
-    let mut request = client.get(&url);
+    let mut request = add_opencode_go_headers(client.get(&url), provider, opencode_session_id);
     if should_send_bearer_auth(api_key) {
         request = request.bearer_auth(api_key.trim());
     }
@@ -125,7 +147,8 @@ pub async fn fetch_models_impl(api_base: &str, api_key: &str) -> Result<Vec<Stri
 
 #[cfg(test)]
 mod tests {
-    use super::should_send_bearer_auth;
+    use super::{add_opencode_go_headers, should_send_bearer_auth};
+    use reqwest::Client;
 
     #[test]
     fn does_not_authenticate_blank_keys() {
@@ -136,5 +159,45 @@ mod tests {
     #[test]
     fn authenticates_non_blank_keys() {
         assert!(should_send_bearer_auth("sk-test"));
+    }
+
+    #[test]
+    fn adds_opencode_session_and_user_agent_only_for_opencode_go() {
+        let request = add_opencode_go_headers(
+            Client::new().get("https://opencode.ai/zen/go/v1/models"),
+            "OpenCode Go",
+            "ses_test-session",
+        )
+        .build()
+        .unwrap();
+
+        assert_eq!(
+            request
+                .headers()
+                .get("x-opencode-session")
+                .and_then(|value| value.to_str().ok()),
+            Some("ses_test-session")
+        );
+        assert_eq!(
+            request
+                .headers()
+                .get(reqwest::header::USER_AGENT)
+                .and_then(|value| value.to_str().ok()),
+            Some(concat!("WintarotAI/", env!("CARGO_PKG_VERSION")))
+        );
+    }
+
+    #[test]
+    fn does_not_add_opencode_headers_to_other_providers() {
+        let request = add_opencode_go_headers(
+            Client::new().get("http://localhost:1234/v1/models"),
+            "LM Studio",
+            "ses_test-session",
+        )
+        .build()
+        .unwrap();
+
+        assert!(request.headers().get("x-opencode-session").is_none());
+        assert!(request.headers().get(reqwest::header::USER_AGENT).is_none());
     }
 }

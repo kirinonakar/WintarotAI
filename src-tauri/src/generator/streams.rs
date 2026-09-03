@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 
-use super::api::should_send_bearer_auth;
+use super::api::{add_opencode_go_headers, should_send_bearer_auth};
 use super::text::clean_thought_tags;
 use super::types::StreamEvent;
 
@@ -78,6 +78,7 @@ pub async fn generate_plot_stream(
     repetition_penalty: f32,
     thinking_level: &str,
     max_tokens: u32,
+    opencode_session_id: &str,
     on_event: tauri::ipc::Channel<StreamEvent>,
     stop_flag: Arc<AtomicBool>,
 ) -> Result<(), String> {
@@ -120,7 +121,11 @@ pub async fn generate_plot_stream(
 
     let request_body = Value::Object(body_map);
 
-    let mut request = client.post(&url).json(&request_body);
+    let mut request = add_opencode_go_headers(
+        client.post(&url).json(&request_body),
+        provider,
+        opencode_session_id,
+    );
     if should_send_bearer_auth(api_key) {
         request = request.bearer_auth(api_key.trim());
     }

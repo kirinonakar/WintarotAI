@@ -13,9 +13,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::ipc::Channel;
 use tauri::{Manager, State};
+use uuid::Uuid;
 
 pub struct AppState {
     pub stop_flag: Arc<AtomicBool>,
+    pub opencode_session_id: String,
+}
+
+fn new_opencode_session_id() -> String {
+    format!("ses_{}", Uuid::new_v4().as_simple())
 }
 
 fn normalize_api_key(value: &str) -> String {
@@ -51,10 +57,17 @@ fn stop_generation(state: State<'_, AppState>) {
 }
 
 #[tauri::command]
-async fn fetch_models(api_base: String, api_key: Option<String>) -> Result<Vec<String>, String> {
+async fn fetch_models(
+    state: State<'_, AppState>,
+    api_base: String,
+    api_key: Option<String>,
+    provider: Option<String>,
+) -> Result<Vec<String>, String> {
     println!("[Backend] Fetching models from: {}", api_base);
     let key = api_key.unwrap_or_default();
-    let res = generator::fetch_models_impl(&api_base, &key).await;
+    let provider = provider.as_deref().unwrap_or_default();
+    let opencode_session_id = state.opencode_session_id.clone();
+    let res = generator::fetch_models_impl(&api_base, &key, provider, &opencode_session_id).await;
     match &res {
         Ok(models) => println!("[Backend] Found {} models", models.len()),
         Err(e) => println!("[Backend] Fetch error: {}", e),
@@ -86,6 +99,7 @@ async fn generate_plot(
     state.stop_flag.store(false, Ordering::Relaxed);
     let mut params = params;
     params.api_key = with_request_api_key(&params.api_key);
+    let opencode_session_id = state.opencode_session_id.clone();
     generator::generate_plot_stream(
         &params.api_base,
         &params.provider,
@@ -98,6 +112,7 @@ async fn generate_plot(
         params.repetition_penalty,
         &params.thinking_level,
         params.max_tokens,
+        &opencode_session_id,
         on_event,
         state.stop_flag.clone(),
     )
@@ -386,6 +401,7 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState {
             stop_flag: Arc::new(AtomicBool::new(false)),
+            opencode_session_id: new_opencode_session_id(),
         })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -406,7 +422,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_api_key;
+    use super::{new_opencode_session_id, normalize_api_key};
 
     #[test]
     fn normalize_api_key_strips_bearer_prefix_only() {
@@ -415,5 +431,13 @@ mod tests {
         assert_eq!(normalize_api_key("Bearer Bearer abc123"), "abc123");
         assert_eq!(normalize_api_key("Bearer"), "");
         assert_eq!(normalize_api_key("bearer-token"), "bearer-token");
+    }
+
+    #[test]
+    fn opencode_session_id_is_stable_format() {
+        let session_id = new_opencode_session_id();
+
+        assert!(session_id.starts_with("ses_"));
+        assert_eq!(session_id.len(), 36);
     }
 }
